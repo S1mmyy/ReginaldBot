@@ -1,8 +1,3 @@
-﻿When joining a new server, pick a channel to default to.
-Store the configuration in a json file
-	The json file should be each guild ID with the channel ID as subdata of it
-Figure out how to handle when a single server updates its channel setting, and save that to the file
-Determine when the current day is an alternating Tuesday
+﻿Determine when the current day is an alternating Tuesday
 	Do it with a counting down timer or a counting up timer that resets to 0
 Make sure the link is only sent once
-Ensure that permissions are upheld and the command can only be done by admins
