@@ -134,6 +134,7 @@ namespace ReginaldBot
 				guildSettings[newChannelChosen.Guild.Id] = newChannelChosen.Id;
 			WriteSettings();
 			await command.RespondAsync($"Reginald will now appear in <#{newChannelChosen.Id}>");
+			await Log(new LogMessage(LogSeverity.Info, "Reginald", $"{client.GetGuild(command.GuildId.Value).Name} told Reginald to appear in #{newChannelChosen.Name}"));
 		}
 
 		private async Task HandleGetChannelCommand(SocketSlashCommand command)
@@ -148,13 +149,14 @@ namespace ReginaldBot
 			await command.RespondAsync($"Made Reginald appear in <#{currentGuildChannelSetting}>", ephemeral: true);
 			var appearChannel = client.GetChannel(currentGuildChannelSetting) as ITextChannel;
 			await appearChannel.SendMessageAsync(imgLink);
+			await Log(new LogMessage(LogSeverity.Info, "Reginald", $"Reginald forced to appear in {client.GetGuild(command.GuildId.Value).Name}"));
 		}
 
 		private async Task StartupTasks()
 		{
 			if (DateTime.Now.Day == nextPostDate.Day && DateTime.Now.Month == nextPostDate.Month && DateTime.Now.Year == nextPostDate.Year)
 			{
-				Console.WriteLine("TODAY'S THE DAY!!!");
+				await Log(new LogMessage(LogSeverity.Info, "Reginald", "TODAY\'S THE DAY!!!!!"));
 				await AppearInAllServers();
 			}
 			else
@@ -168,6 +170,7 @@ namespace ReginaldBot
 					AutoReset = false,
 					Enabled = true
 				};
+				await Log(new LogMessage(LogSeverity.Info, "Reginald", $"{postTimer.Interval / 60000} minutes left until posting"));
 				postTimer.Elapsed += OnPostTimerEnd;
 			}
 		}
@@ -191,6 +194,7 @@ namespace ReginaldBot
 				currentGuildChannel = client.GetChannel(guildData) as ITextChannel;
 				await currentGuildChannel.SendMessageAsync(imgLink);
 			}
+			await Log(new LogMessage(LogSeverity.Info, "Reginald", $"Appeared everywhere at {DateTime.Now}"));
 			SetNewDates();
 		}
 
