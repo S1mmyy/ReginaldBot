@@ -14,11 +14,12 @@ namespace ReginaldBot
 {
 	public class Program
 	{
-		private DiscordSocketClient _client;
+		private DiscordSocketClient client;
 		private Dictionary<ulong, ulong> guildSettings = new Dictionary<ulong, ulong>();
 		private const string imgLink = "https://i.kym-cdn.com/photos/images/newsfeed/001/455/239/daa.jpg";
+		private DateTime lastPostDate, nextPostDate = new DateTime();
 
-		public static Task Main(string[] args)
+		public static Task Main()
 		{
 			return new Program().MainAsync();
 		}
@@ -27,24 +28,22 @@ namespace ReginaldBot
 		public async Task MainAsync()
 		{
 			var token = Environment.GetEnvironmentVariable("DiscordToken");
-			ReadSettings();
 
 			DiscordSocketConfig config = new DiscordSocketConfig()
 			{
 				UseInteractionSnowflakeDate = false
 			};
 
-			// Create the actual client
-			_client = new DiscordSocketClient(config);
-			_client.Log += Log;
+			client = new DiscordSocketClient(config);
+			client.Log += Log;
 
-			// Log the client in and connect to Discord
-			await _client.LoginAsync(TokenType.Bot, token);
-			await _client.StartAsync();
+			await client.LoginAsync(TokenType.Bot, token);
+			await client.StartAsync();
 
-			_client.Ready += Client_Ready;
-			_client.SlashCommandExecuted += SlashCommandHandler;
-			_client.JoinedGuild += JoinedServer;
+			client.Ready += ClientReady;
+			client.SlashCommandExecuted += SlashCommandHandler;
+			client.JoinedGuild += JoinedServer;
+			client.LeftGuild += LeftServer;
 
 			// Block this task until the program is closed
 			await Task.Delay(-1);
@@ -56,40 +55,49 @@ namespace ReginaldBot
 			Console.WriteLine(msg.ToString());
 			return Task.CompletedTask;
 		}
-
-		// Use the welcome channel as the default
+		
 		private Task JoinedServer(SocketGuild newGuild)
 		{
+			// Appear in the welcome channel by default
 			guildSettings.Add(newGuild.Id, newGuild.DefaultChannel.Id);
+			WriteSettings();
 			return Task.CompletedTask;
 		}
 
-		// Build slash commands
-		private async Task Client_Ready()
+		private Task LeftServer(SocketGuild guildLeft)
 		{
-			var guild = _client.GetGuild(1009147201362067566);
-			List<ApplicationCommandProperties> appCmdProperties = new List<ApplicationCommandProperties>();
+			guildSettings.Remove(guildLeft.Id);
+			WriteSettings();
+			return Task.CompletedTask;
+		}
+
+		private async Task ClientReady()
+		{
+			ReadSettingsAndDates();
+			await StartupChecks();
 
 			var globalCommandSetChannel = new SlashCommandBuilder()
 				.WithName("choose-channel")
 				.WithDescription("Choose what channel Reginald will appear in.")
-				.AddOption("channel", ApplicationCommandOptionType.Channel, "The channel you want Reginald to appear in", isRequired: true)
+				.AddOption("channel", ApplicationCommandOptionType.Channel, "The channel you want Reginald to appear in",
+					isRequired: true, channelTypes: new List<ChannelType> { 0 }) // Only show text channels as options
 				.WithDefaultMemberPermissions(GuildPermission.Administrator);
-
+			
 			var globalCommandGetChannel = new SlashCommandBuilder()
 				.WithName("wheres-reginald")
 				.WithDescription("Tells you where Reginald appears.");
-
+			
 			var globalCommandAppear = new SlashCommandBuilder()
 				.WithName("appear")
 				.WithDescription("Makes Reginald appear in his channel.")
 				.WithDefaultMemberPermissions(GuildPermission.Administrator);
+			
 
 			try
 			{
-				//await _client.CreateGlobalApplicationCommandAsync(globalCommandSetChannel.Build());
-				//await _client.CreateGlobalApplicationCommandAsync(globalCommandGetChannel.Build());
-				//await _client.CreateGlobalApplicationCommandAsync(globalCommandAppear.Build());
+				await client.CreateGlobalApplicationCommandAsync(globalCommandSetChannel.Build());
+				await client.CreateGlobalApplicationCommandAsync(globalCommandGetChannel.Build());
+				await client.CreateGlobalApplicationCommandAsync(globalCommandAppear.Build());
 
 				//await guild.DeleteApplicationCommandsAsync();
 			}
@@ -123,7 +131,7 @@ namespace ReginaldBot
 				guildSettings.Add(newChannelChosen.Guild.Id, newChannelChosen.Id);
 			else
 				guildSettings[newChannelChosen.Guild.Id] = newChannelChosen.Id;
-			UpdateSettings();
+			WriteSettings();
 			await command.RespondAsync($"Reginald will now appear in <#{newChannelChosen.Id}>");
 		}
 
@@ -137,20 +145,68 @@ namespace ReginaldBot
 		{
 			ulong currentGuildChannelSetting = guildSettings[command.GuildId.Value];
 			await command.RespondAsync($"Made Reginald appear in <#{currentGuildChannelSetting}>", ephemeral: true);
-			var appearChannel = _client.GetChannel(currentGuildChannelSetting) as ITextChannel;
+			var appearChannel = client.GetChannel(currentGuildChannelSetting) as ITextChannel;
 			await appearChannel.SendMessageAsync(imgLink);
 		}
 
-		private void UpdateSettings()
+		private async Task StartupChecks()
 		{
-			string json = JsonConvert.SerializeObject(guildSettings, Formatting.Indented);
-			File.WriteAllText("guild channel settings.json", json);
+			if (DateTime.Now.Day == nextPostDate.Day && DateTime.Now.Month == nextPostDate.Month && DateTime.Now.Year == nextPostDate.Year)
+			{
+				Console.WriteLine("TODAY'S THE DAY!!!");
+				await AppearInAllServers();
+			}
 		}
 
-		private void ReadSettings()
+		private async Task AppearInAllServers()
 		{
-			string json = File.ReadAllText("guild channel settings.json");
+			ITextChannel currentGuildChannel;
+			foreach (ulong guildData in guildSettings.Values)
+			{
+				currentGuildChannel = client.GetChannel(guildData) as ITextChannel;
+				await currentGuildChannel.SendMessageAsync(imgLink);
+			}
+			ShiftDates();
+		}
+
+		private void ShiftDates()
+		{
+			lastPostDate = DateTime.Now;
+			nextPostDate = nextPostDate.AddDays(14);
+			WriteDates();
+		}
+
+		private void ReadSettingsAndDates()
+		{
+			string json = File.ReadAllText("guild_channel_settings.json");
 			guildSettings = JsonConvert.DeserializeObject<Dictionary<ulong, ulong>>(json);
+
+			using (StreamReader sr = File.OpenText("post_dates.txt"))
+			{
+				lastPostDate = DateTime.Parse(sr.ReadLine());
+				nextPostDate = DateTime.Parse(sr.ReadLine());
+			}
+			Console.WriteLine("Saved dates read in");
+			Console.WriteLine("Last posted at " + lastPostDate);
+			Console.WriteLine("Next post is scheduled for " + nextPostDate);
+		}
+
+		private void WriteSettings()
+		{
+			string json = JsonConvert.SerializeObject(guildSettings, Formatting.Indented);
+			File.WriteAllText("guild_channel_settings.json", json);
+		}
+
+		private void WriteDates()
+		{
+			using (StreamWriter sw = File.CreateText("post_dates.txt"))
+			{
+				sw.WriteLine(lastPostDate);
+				sw.WriteLine(nextPostDate);
+			}
+			Console.WriteLine("New dates saved to file");
+			Console.WriteLine("Last posted at " + lastPostDate);
+			Console.WriteLine("Next post is scheduled for " + nextPostDate);
 		}
 	}
 }

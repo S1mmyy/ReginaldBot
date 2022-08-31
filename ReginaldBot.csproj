@@ -34,7 +34,6 @@
   </PropertyGroup>
   <ItemGroup>
     <None Include="App.config" />
-    <None Include="guild channel settings.json" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
@@ -104,9 +103,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="to do list.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
