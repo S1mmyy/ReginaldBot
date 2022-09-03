@@ -1,238 +1,82 @@
-﻿using System;
-using System.IO;
-using System.Collections.Generic;
-using System.Linq;
-using System.Timers;
-using System.Threading.Tasks;
-using Newtonsoft.Json;
-
-using Discord;
-using Discord.Net;
-using Discord.WebSocket;
-
-namespace ReginaldBot
+﻿namespace ReginaldBot
 {
-	public class Program
-	{
-		private DiscordSocketClient client;
-		private DateTime lastPostDate, nextPostDate = new DateTime();
-		private Dictionary<ulong, ulong> guildSettings = new Dictionary<ulong, ulong>();
-		private const string imgLink = "https://i.kym-cdn.com/photos/images/newsfeed/001/455/239/daa.jpg";
-		private Timer postTimer;
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Text;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using Discord;
+    using Discord.Commands;
+    using Discord.Interactions;
+    using Discord.WebSocket;
+    using Microsoft.Extensions.DependencyInjection;
 
-		public static Task Main()
-		{
-			return new Program().MainAsync();
-		}
+    public class Program
+    {
+        public static void Main() => new Program().MainAsync().GetAwaiter().GetResult();
+        public async Task MainAsync()
+        {
+            var config = BotConfiguration.GetBotConfiguration();
+            var database = new ReginaldBotContext().GetDatabase();
+            var services = new ServiceCollection()
+                    .AddSingleton(config)
+                    .AddSingleton(database)
+                    .AddSingleton<DiscordSocketClient>()
+                    .AddSingleton(x => new InteractionService(x.GetRequiredService<DiscordSocketClient>()))
+                    .AddSingleton<InteractionHandler>()
+                    .AddSingleton<CommandService>()
+                    .AddSingleton<EventHandler>()
+                    .BuildServiceProvider();
 
-		// Starts program into an async context
-		public async Task MainAsync()
-		{
-			var token = Environment.GetEnvironmentVariable("DiscordToken");
+            await RunAsync(services);
+        }
+        private readonly DiscordSocketConfig _socketConfig = new DiscordSocketConfig()
+        {
+            GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.GuildMembers | GatewayIntents.GuildMessages,
+            AlwaysDownloadUsers = true,
+            AlwaysDownloadDefaultStickers = false,
+            DefaultRetryMode = RetryMode.AlwaysRetry,
+        };
+        public async Task RunAsync(IServiceProvider _services)
+        {
+            var client = _services.GetRequiredService<DiscordSocketClient>();
 
-			DiscordSocketConfig config = new DiscordSocketConfig()
-			{
-				UseInteractionSnowflakeDate = false
-			};
+            client.Log += LogAsync;
 
-			client = new DiscordSocketClient(config);
-			client.Log += Log;
+            _services.GetRequiredService<EventHandler>().Initialize();
+            // Here we can initialize the service that will register and execute our commands
+            await _services.GetRequiredService<InteractionHandler>().InitializeAsync();
 
-			await client.LoginAsync(TokenType.Bot, token);
-			await client.StartAsync();
+            // Bot token can be provided from the BotConfiguration object we set up earlier
+            await client.LoginAsync(TokenType.Bot, _services.GetRequiredService<BotConfiguration>().BotToken);
+            await client.StartAsync();
 
-			client.Ready += ClientIsReady;
-			client.SlashCommandExecuted += SlashCommandHandler;
-			client.JoinedGuild += JoinedServer;
-			client.LeftGuild += LeftServer;
-
-			// Block this task until the program is closed
-			await Task.Delay(-1);
-			postTimer.Stop();
-		}
-
-		private Task Log(LogMessage msg)
-		{
-			Console.WriteLine(msg.ToString());
-			return Task.CompletedTask;
-		}
-		
-		private Task JoinedServer(SocketGuild newGuild)
-		{
-			// Appear in the welcome channel by default
-			guildSettings.Add(newGuild.Id, newGuild.DefaultChannel.Id);
-			WriteSettings();
-			return Task.CompletedTask;
-		}
-
-		private Task LeftServer(SocketGuild guildLeft)
-		{
-			guildSettings.Remove(guildLeft.Id);
-			WriteSettings();
-			return Task.CompletedTask;
-		}
-
-		// Things that happen on startup
-		private async Task ClientIsReady()
-		{
-			ReadSettingsAndDates();
-			await StartupTasks();
-			//await BuildSlashCommands();
-		}
-
-		private async Task BuildSlashCommands()
-		{
-			var globalCommandSetChannel = new SlashCommandBuilder()
-				.WithName("choose-channel")
-				.WithDescription("Choose what channel Reginald will appear in.")
-				.AddOption("channel", ApplicationCommandOptionType.Channel, "The channel you want Reginald to appear in",
-					isRequired: true, channelTypes: new List<ChannelType> { 0 }) // Only show text channels as options
-				.WithDefaultMemberPermissions(GuildPermission.Administrator);
-			var globalCommandGetChannel = new SlashCommandBuilder()
-				.WithName("wheres-reginald")
-				.WithDescription("Tells you where Reginald appears.");
-			var globalCommandAppear = new SlashCommandBuilder()
-				.WithName("appear")
-				.WithDescription("Makes Reginald appear in his channel.")
-				.WithDefaultMemberPermissions(GuildPermission.Administrator);
-
-			try
-			{
-				await client.CreateGlobalApplicationCommandAsync(globalCommandSetChannel.Build());
-				await client.CreateGlobalApplicationCommandAsync(globalCommandGetChannel.Build());
-				await client.CreateGlobalApplicationCommandAsync(globalCommandAppear.Build());
-			}
-			catch (HttpException e)
-			{
-				var json = JsonConvert.SerializeObject(e.Errors, Formatting.Indented);
-				Console.WriteLine(json);
-			}
-		}
-
-		private async Task SlashCommandHandler(SocketSlashCommand command)
-		{
-			switch (command.Data.Name)
-			{
-				case "choose-channel":
-					await HandleChannelChoiceCommand(command);
-					break;
-				case "wheres-reginald":
-					await HandleGetChannelCommand(command);
-					break;
-				case "appear":
-					await HandleAppearCommand(command);
-					break;
-			}
-		}
-
-		private async Task HandleChannelChoiceCommand(SocketSlashCommand command)
-		{
-			SocketGuildChannel newChannelChosen = (SocketGuildChannel)command.Data.Options.First().Value;
-			if (!guildSettings.ContainsKey(newChannelChosen.Guild.Id))
-				guildSettings.Add(newChannelChosen.Guild.Id, newChannelChosen.Id);
-			else
-				guildSettings[newChannelChosen.Guild.Id] = newChannelChosen.Id;
-			WriteSettings();
-			await command.RespondAsync($"Reginald will now appear in <#{newChannelChosen.Id}>");
-			await Log(new LogMessage(LogSeverity.Info, "Reginald", $"{client.GetGuild(command.GuildId.Value).Name} told Reginald to appear in #{newChannelChosen.Name}"));
-		}
-
-		private async Task HandleGetChannelCommand(SocketSlashCommand command)
-		{
-			ulong currentGuildChannelSetting = guildSettings[command.GuildId.Value];
-			await command.RespondAsync($"Reginald appears in <#{currentGuildChannelSetting}>", ephemeral: true);
-		}
-
-		private async Task HandleAppearCommand(SocketSlashCommand command)
-		{
-			ulong currentGuildChannelSetting = guildSettings[command.GuildId.Value];
-			await command.RespondAsync($"Made Reginald appear in <#{currentGuildChannelSetting}>", ephemeral: true);
-			var appearChannel = client.GetChannel(currentGuildChannelSetting) as ITextChannel;
-			await appearChannel.SendMessageAsync(imgLink);
-			await Log(new LogMessage(LogSeverity.Info, "Reginald", $"Reginald forced to appear in {client.GetGuild(command.GuildId.Value).Name}"));
-		}
-
-		private async Task StartupTasks()
-		{
-			if (DateTime.Now.Day == nextPostDate.Day && DateTime.Now.Month == nextPostDate.Month && DateTime.Now.Year == nextPostDate.Year)
-			{
-				await Log(new LogMessage(LogSeverity.Info, "Reginald", "TODAY\'S THE DAY!!!!!"));
-				await AppearInAllServers();
-			}
-			else
-			{
-				while (DateTime.Now > nextPostDate)
-				{
-					nextPostDate.AddDays(14);
-				}
-				postTimer = new Timer((nextPostDate - DateTime.Now).TotalMilliseconds)
-				{
-					AutoReset = false,
-					Enabled = true
-				};
-				await Log(new LogMessage(LogSeverity.Info, "Reginald", $"{postTimer.Interval / 60000} minutes left until posting"));
-				postTimer.Elapsed += OnPostTimerEnd;
-			}
-		}
-
-		private async void OnPostTimerEnd(object source, ElapsedEventArgs e)
-		{
-			await AppearInAllServers();
-		}
-
-		private void ResetTimer()
-		{
-			postTimer.Interval = (nextPostDate - DateTime.Now).TotalMilliseconds;
-			postTimer.Enabled = true;
-		}
-
-		private async Task AppearInAllServers()
-		{
-			ITextChannel currentGuildChannel;
-			foreach (ulong guildData in guildSettings.Values)
-			{
-				currentGuildChannel = client.GetChannel(guildData) as ITextChannel;
-				await currentGuildChannel.SendMessageAsync(imgLink);
-			}
-			await Log(new LogMessage(LogSeverity.Info, "Reginald", $"Appeared everywhere at {DateTime.Now}"));
-			SetNewDates();
-		}
-
-		private void SetNewDates()
-		{
-			lastPostDate = DateTime.Now;
-			nextPostDate = nextPostDate.AddDays(14);
-			WriteDates();
-			ResetTimer();
-		}
-
-		private async void ReadSettingsAndDates()
-		{
-			string json = File.ReadAllText("guild_channel_settings.json");
-			guildSettings = JsonConvert.DeserializeObject<Dictionary<ulong, ulong>>(json);
-
-			using (StreamReader sr = File.OpenText("post_dates.txt"))
-			{
-				lastPostDate = DateTime.Parse(sr.ReadLine());
-				nextPostDate = DateTime.Parse(sr.ReadLine());
-			}
-			await Log(new LogMessage(LogSeverity.Info, "Reginald", "Saved dates read in"));
-		}
-
-		private void WriteSettings()
-		{
-			string json = JsonConvert.SerializeObject(guildSettings, Formatting.Indented);
-			File.WriteAllText("guild_channel_settings.json", json);
-		}
-
-		private async void WriteDates()
-		{
-			using (StreamWriter sw = File.CreateText("post_dates.txt"))
-			{
-				sw.WriteLine(lastPostDate);
-				sw.WriteLine(nextPostDate);
-			}
-			await Log(new LogMessage(LogSeverity.Info, "Reginald", "New dates saved to file"));
-		}
-	}
+            // Never quit the program until manually forced to.
+            await Task.Delay(Timeout.Infinite);
+        }
+        private Task LogAsync(LogMessage message)
+        {
+            Console.WriteLine(message.ToString());
+            return Task.CompletedTask;
+        }
+        public static void Log(string service, string text)
+        {
+            Console.WriteLine(DateTime.UtcNow.ToString("T") + " " + service.PadRight(20) + text);
+        }
+        public static void Log(string service, string text, ConsoleColor color)
+        {
+            Console.ForegroundColor = color;
+            Console.WriteLine(DateTime.UtcNow.ToString("T") + " " + service.PadRight(20) + text);
+            Console.ResetColor();
+        }
+        public static bool IsDebug()
+        {
+#if DEBUG
+            return true;
+#else
+                return false;
+#endif
+        }
+    }
 }

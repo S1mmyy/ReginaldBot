@@ -34,29 +34,35 @@
   </PropertyGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <None Include="config.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="Discord.Net.Commands, Version=3.7.2.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>packages\Discord.Net.Commands.3.7.2\lib\net461\Discord.Net.Commands.dll</HintPath>
+    <Reference Include="Discord.Net.Commands, Version=3.8.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>packages\Discord.Net.Commands.3.8.0\lib\net461\Discord.Net.Commands.dll</HintPath>
     </Reference>
-    <Reference Include="Discord.Net.Core, Version=3.7.2.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>packages\Discord.Net.Core.3.7.2\lib\net461\Discord.Net.Core.dll</HintPath>
+    <Reference Include="Discord.Net.Core, Version=3.8.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>packages\Discord.Net.Core.3.8.0\lib\net461\Discord.Net.Core.dll</HintPath>
     </Reference>
-    <Reference Include="Discord.Net.Interactions, Version=3.7.2.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>packages\Discord.Net.Interactions.3.7.2\lib\net461\Discord.Net.Interactions.dll</HintPath>
+    <Reference Include="Discord.Net.Interactions, Version=3.8.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>packages\Discord.Net.Interactions.3.8.0\lib\net461\Discord.Net.Interactions.dll</HintPath>
     </Reference>
-    <Reference Include="Discord.Net.Rest, Version=3.7.2.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>packages\Discord.Net.Rest.3.7.2\lib\net461\Discord.Net.Rest.dll</HintPath>
+    <Reference Include="Discord.Net.Rest, Version=3.8.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>packages\Discord.Net.Rest.3.8.0\lib\net461\Discord.Net.Rest.dll</HintPath>
     </Reference>
-    <Reference Include="Discord.Net.Webhook, Version=3.7.2.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>packages\Discord.Net.Webhook.3.7.2\lib\netstandard2.0\Discord.Net.Webhook.dll</HintPath>
+    <Reference Include="Discord.Net.Webhook, Version=3.8.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>packages\Discord.Net.Webhook.3.8.0\lib\netstandard2.0\Discord.Net.Webhook.dll</HintPath>
     </Reference>
-    <Reference Include="Discord.Net.WebSocket, Version=3.7.2.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>packages\Discord.Net.WebSocket.3.7.2\lib\net461\Discord.Net.WebSocket.dll</HintPath>
+    <Reference Include="Discord.Net.WebSocket, Version=3.8.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>packages\Discord.Net.WebSocket.3.8.0\lib\net461\Discord.Net.WebSocket.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.Bcl.AsyncInterfaces, Version=6.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
       <HintPath>packages\Microsoft.Bcl.AsyncInterfaces.6.0.0\lib\net461\Microsoft.Bcl.AsyncInterfaces.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Extensions.DependencyInjection, Version=6.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>packages\Microsoft.Extensions.DependencyInjection.6.0.0\lib\net461\Microsoft.Extensions.DependencyInjection.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.Extensions.DependencyInjection.Abstractions, Version=6.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
       <HintPath>packages\Microsoft.Extensions.DependencyInjection.Abstractions.6.0.0\lib\net461\Microsoft.Extensions.DependencyInjection.Abstractions.dll</HintPath>
@@ -102,7 +108,21 @@
     <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Entities\Configuration.cs" />
+    <Compile Include="EventHandler.cs" />
+    <Compile Include="Extenstions\DatetimeExtensions.cs" />
+    <Compile Include="Interactions\InteractionHandler.cs" />
+    <Compile Include="Interactions\Modules\Public.cs" />
     <Compile Include="Program.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Services\" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="ReginaldBot.Data\ReginaldBot.Data.csproj">
+      <Project>{c590eacf-26e6-497e-b8e2-93fc83231881}</Project>
+      <Name>ReginaldBot.Data</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
