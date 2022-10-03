@@ -29,10 +29,12 @@ namespace ReginaldBot
 		public async Task MainAsync()
 		{
 			var token = Environment.GetEnvironmentVariable("DiscordToken");
+			postTimer = new Timer() { AutoReset = false };
 
 			DiscordSocketConfig config = new DiscordSocketConfig()
 			{
-				UseInteractionSnowflakeDate = false
+				UseInteractionSnowflakeDate = false,
+				GatewayIntents = GatewayIntents.AllUnprivileged & ~GatewayIntents.GuildScheduledEvents & ~GatewayIntents.GuildInvites,
 			};
 
 			client = new DiscordSocketClient(config);
@@ -48,7 +50,6 @@ namespace ReginaldBot
 
 			// Block this task until the program is closed
 			await Task.Delay(-1);
-			postTimer.Stop();
 		}
 
 		private Task Log(LogMessage msg)
@@ -78,6 +79,13 @@ namespace ReginaldBot
 			ReadSettingsAndDates();
 			await StartupTasks();
 			//await BuildSlashCommands();
+			client.Connected += ClientConnected;
+		}
+
+		// Doesn't run on initial connection
+		private async Task ClientConnected()
+		{
+			await Log(new LogMessage(LogSeverity.Info, "Reginald", string.Format("{0:%d} days {0:%h} hours and {0:%m} minutes left until posting", nextPostDate - DateTime.Now)));
 		}
 
 		private async Task BuildSlashCommands()
@@ -154,25 +162,21 @@ namespace ReginaldBot
 
 		private async Task StartupTasks()
 		{
-			if (DateTime.Now.Day == nextPostDate.Day && DateTime.Now.Month == nextPostDate.Month && DateTime.Now.Year == nextPostDate.Year)
+			if (DateTime.Now.Hour >= nextPostDate.Hour && DateTime.Now.Day == nextPostDate.Day && DateTime.Now.Month == nextPostDate.Month && DateTime.Now.Year == nextPostDate.Year)
 			{
 				await Log(new LogMessage(LogSeverity.Info, "Reginald", "TODAY\'S THE DAY!!!!!"));
 				await AppearInAllServers();
 			}
-			else
+			else if (DateTime.Now > nextPostDate)
 			{
 				while (DateTime.Now > nextPostDate)
 				{
-					nextPostDate.AddDays(14);
+					nextPostDate = nextPostDate.AddDays(14);
 				}
-				postTimer = new Timer((nextPostDate - DateTime.Now).TotalMilliseconds)
-				{
-					AutoReset = false,
-					Enabled = true
-				};
-				await Log(new LogMessage(LogSeverity.Info, "Reginald", $"{postTimer.Interval / 60000} minutes left until posting"));
-				postTimer.Elapsed += OnPostTimerEnd;
+				WriteDates();
 			}
+			postTimer.Elapsed += OnPostTimerEnd;
+			ResetTimer();
 		}
 
 		private async void OnPostTimerEnd(object source, ElapsedEventArgs e)
@@ -180,10 +184,12 @@ namespace ReginaldBot
 			await AppearInAllServers();
 		}
 
-		private void ResetTimer()
+		private async void ResetTimer()
 		{
+			postTimer.Stop();
 			postTimer.Interval = (nextPostDate - DateTime.Now).TotalMilliseconds;
-			postTimer.Enabled = true;
+			postTimer.Start();
+			await Log(new LogMessage(LogSeverity.Info, "Reginald", string.Format("{0:%d} days {0:%h} hours and {0:%m} minutes left until posting", nextPostDate - DateTime.Now)));
 		}
 
 		private async Task AppearInAllServers()
