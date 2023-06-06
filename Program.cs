@@ -157,7 +157,7 @@ namespace ReginaldBot
 			await command.RespondAsync($"Made Reginald appear in <#{currentGuildChannelSetting}>", ephemeral: true);
 			var appearChannel = client.GetChannel(currentGuildChannelSetting) as ITextChannel;
 			await appearChannel.SendMessageAsync(imgLink);
-			await Log(new LogMessage(LogSeverity.Info, "Reginald", $"Reginald forced to appear in {client.GetGuild(command.GuildId.Value).Name}"));
+			await Log(new LogMessage(LogSeverity.Info, "Reginald", $"Reginald forced to appear in #{appearChannel} in {client.GetGuild(command.GuildId.Value).Name}"));
 		}
 
 		private async Task StartupTasks()
@@ -195,12 +195,21 @@ namespace ReginaldBot
 		private async Task AppearInAllServers()
 		{
 			ITextChannel currentGuildChannel;
-			foreach (ulong guildData in guildSettings.Values)
+			foreach (KeyValuePair<ulong, ulong> guildSettingIds in guildSettings)
 			{
-				currentGuildChannel = client.GetChannel(guildData) as ITextChannel;
-				await currentGuildChannel.SendMessageAsync(imgLink);
+				currentGuildChannel = client.GetChannel(guildSettingIds.Value) as ITextChannel;
+				try
+				{
+					await currentGuildChannel.SendMessageAsync(imgLink);
+					await Log(new LogMessage(LogSeverity.Info, "Reginald", $"Posted in #{currentGuildChannel} in {client.GetGuild(guildSettingIds.Key).Name}"));
+				}
+				catch (Exception e)
+				{
+					await Log(new LogMessage(LogSeverity.Error, "Reginald", e.InnerException.Message));
+					await Log(new LogMessage(LogSeverity.Error, "Reginald", $"Error attempting to post in #{currentGuildChannel} in {client.GetGuild(guildSettingIds.Key).Name}"));
+				}
 			}
-			await Log(new LogMessage(LogSeverity.Info, "Reginald", $"Appeared everywhere at {DateTime.Now}"));
+			await Log(new LogMessage(LogSeverity.Info, "Reginald", $"Finished appearing everywhere at {DateTime.Now}"));
 			SetNewDates();
 		}
 
