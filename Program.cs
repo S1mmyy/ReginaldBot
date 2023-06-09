@@ -112,8 +112,7 @@ namespace ReginaldBot
 			}
 			catch (HttpException e)
 			{
-				var json = JsonConvert.SerializeObject(e.Errors, Formatting.Indented);
-				Console.WriteLine(json);
+				await Log(new LogMessage(LogSeverity.Error, "Reginald", e.Message));
 			}
 		}
 
@@ -136,7 +135,7 @@ namespace ReginaldBot
 			}
 			catch (HttpException e)
 			{
-				await Log(new LogMessage(LogSeverity.Error, "Reginald", e.InnerException.Message));
+				await Log(new LogMessage(LogSeverity.Error, "Reginald", e.Message));
 			}
 		}
 
@@ -149,13 +148,13 @@ namespace ReginaldBot
 				guildSettings[newChannelChosen.Guild.Id] = newChannelChosen.Id;
 			WriteSettings();
 			await command.RespondAsync($"Reginald will now appear in <#{newChannelChosen.Id}>");
-			await Log(new LogMessage(LogSeverity.Info, "Reginald", $"{client.GetGuild(command.GuildId.Value).Name} told Reginald to appear in #{newChannelChosen.Name}"));
+			await Log(new LogMessage(LogSeverity.Info, "Reginald", $"{newChannelChosen.Guild.Name} told Reginald to appear in #{newChannelChosen.Name}"));
 		}
 
 		private async Task HandleGetChannelCommand(SocketSlashCommand command)
 		{
 			ulong currentGuildChannelSetting = guildSettings[command.GuildId.Value];
-			await command.RespondAsync($"Reginald appears in <#{currentGuildChannelSetting}>", ephemeral: true);
+			await command.RespondAsync($"Reginald will next appear in <#{currentGuildChannelSetting}> on {nextPostDate:MM/dd/yyyy}", ephemeral: true);
 		}
 
 		private async Task HandleAppearCommand(SocketSlashCommand command)
@@ -202,18 +201,18 @@ namespace ReginaldBot
 		private async Task AppearInAllServers()
 		{
 			ITextChannel currentGuildChannel;
-			foreach (KeyValuePair<ulong, ulong> guildSettingIds in guildSettings)
+			foreach (ulong guildChannelSettingId in guildSettings.Values)
 			{
-				currentGuildChannel = client.GetChannel(guildSettingIds.Value) as ITextChannel;
+				currentGuildChannel = client.GetChannel(guildChannelSettingId) as ITextChannel;
 				try
 				{
 					await currentGuildChannel.SendMessageAsync(imgLink);
-					await Log(new LogMessage(LogSeverity.Info, "Reginald", $"Posted in #{currentGuildChannel} in {client.GetGuild(guildSettingIds.Key).Name}"));
+					await Log(new LogMessage(LogSeverity.Info, "Reginald", $"Posted in #{currentGuildChannel} in {currentGuildChannel.Guild.Name}"));
 				}
 				catch (Exception e)
 				{
 					await Log(new LogMessage(LogSeverity.Error, "Reginald", e.InnerException.Message));
-					await Log(new LogMessage(LogSeverity.Error, "Reginald", $"Error attempting to post in #{currentGuildChannel} in {client.GetGuild(guildSettingIds.Key).Name}"));
+					await Log(new LogMessage(LogSeverity.Error, "Reginald", $"Error attempting to post in #{currentGuildChannel} in {currentGuildChannel.Guild.Name}"));
 				}
 			}
 			await Log(new LogMessage(LogSeverity.Info, "Reginald", $"Finished appearing everywhere at {DateTime.Now}"));
