@@ -78,7 +78,7 @@ namespace ReginaldBot
 		{
 			ReadSettingsAndDates();
 			await StartupTasks();
-			//await BuildSlashCommands();
+			// await BuildSlashCommands();
 			client.Connected += ClientConnected;
 		}
 
@@ -98,7 +98,7 @@ namespace ReginaldBot
 				.WithDefaultMemberPermissions(GuildPermission.Administrator);
 			var globalCommandGetChannel = new SlashCommandBuilder()
 				.WithName("wheres-reginald")
-				.WithDescription("Tells you where Reginald appears.");
+				.WithDescription("Tells you where and when Reginald will next appear.");
 			var globalCommandAppear = new SlashCommandBuilder()
 				.WithName("appear")
 				.WithDescription("Makes Reginald appear in his channel.")
