@@ -119,17 +119,24 @@ namespace ReginaldBot
 
 		private async Task SlashCommandHandler(SocketSlashCommand command)
 		{
-			switch (command.Data.Name)
+			try
 			{
-				case "choose-channel":
-					await HandleChannelChoiceCommand(command);
-					break;
-				case "wheres-reginald":
-					await HandleGetChannelCommand(command);
-					break;
-				case "appear":
-					await HandleAppearCommand(command);
-					break;
+				switch (command.Data.Name)
+				{
+					case "choose-channel":
+						await HandleChannelChoiceCommand(command);
+						break;
+					case "wheres-reginald":
+						await HandleGetChannelCommand(command);
+						break;
+					case "appear":
+						await HandleAppearCommand(command);
+						break;
+				}
+			}
+			catch (HttpException e)
+			{
+				await Log(new LogMessage(LogSeverity.Error, "Reginald", e.InnerException.Message));
 			}
 		}
 
