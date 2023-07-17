@@ -181,8 +181,11 @@ namespace ReginaldBot
 				}
 				WriteDates();
 			}
-			postTimer.Elapsed += OnPostTimerEnd;
-			ResetTimer();
+			if (!postTimer.Enabled)
+			{
+				postTimer.Elapsed += OnPostTimerEnd;
+				ResetTimer();
+			}
 		}
 
 		private async void OnPostTimerEnd(object source, ElapsedEventArgs e)
