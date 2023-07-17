@@ -62,6 +62,7 @@ namespace ReginaldBot
 		{
 			// Appear in the welcome channel by default
 			guildSettings.Add(newGuild.Id, newGuild.DefaultChannel.Id);
+			Log(new LogMessage(LogSeverity.Info, "Reginald", $"Joined server: {newGuild.Name}"));
 			WriteSettings();
 			return Task.CompletedTask;
 		}
@@ -69,6 +70,7 @@ namespace ReginaldBot
 		private Task LeftServer(SocketGuild guildLeft)
 		{
 			guildSettings.Remove(guildLeft.Id);
+			Log(new LogMessage(LogSeverity.Info, "Reginald", $"Left server: {guildLeft.Name}"));
 			WriteSettings();
 			return Task.CompletedTask;
 		}
@@ -181,10 +183,16 @@ namespace ReginaldBot
 				}
 				WriteDates();
 			}
+
 			if (!postTimer.Enabled)
 			{
 				postTimer.Elapsed += OnPostTimerEnd;
 				ResetTimer();
+			}
+
+			if (client.Guilds.Count != guildSettings.Count)
+			{
+				UpdateGuildSettingsAtStartup();
 			}
 		}
 
@@ -257,6 +265,30 @@ namespace ReginaldBot
 				sw.WriteLine(nextPostDate);
 			}
 			await Log(new LogMessage(LogSeverity.Info, "Reginald", "New dates saved to file"));
+		}
+
+		private void UpdateGuildSettingsAtStartup()
+		{
+			// Check for servers Reginald has left while offline
+			foreach (ulong guildIdFromSettings in guildSettings.Keys)
+			{
+				if (!client.Guilds.Contains(client.GetGuild(guildIdFromSettings)))
+				{
+					guildSettings.Remove(guildIdFromSettings);
+					Log(new LogMessage(LogSeverity.Info, "Reginald", $"Left server while offline: {client.GetGuild(guildIdFromSettings).Name}"));
+				}
+			}
+
+			// Check for servers Reginald has joined while offline
+			foreach (SocketGuild currJoinedGuild in client.Guilds)
+			{
+				if (!guildSettings.ContainsKey(currJoinedGuild.Id))
+				{
+					guildSettings.Add(currJoinedGuild.Id, currJoinedGuild.DefaultChannel.Id);
+					Log(new LogMessage(LogSeverity.Info, "Reginald", $"Joined server while offline: {currJoinedGuild.Name}"));
+				}
+			}
+			WriteSettings();
 		}
 	}
 }
