@@ -19,6 +19,7 @@ namespace ReginaldBot
 		private Dictionary<ulong, ulong> guildSettings = new Dictionary<ulong, ulong>();
 		private const string imgLink = "https://i.kym-cdn.com/photos/images/newsfeed/001/455/239/daa.jpg";
 		private Timer postTimer;
+		private bool timerEventBoundToMethod = false;
 
 		public static Task Main()
 		{
@@ -184,9 +185,10 @@ namespace ReginaldBot
 				WriteDates();
 			}
 
-			if (!postTimer.Enabled)
+			if (!timerEventBoundToMethod)
 			{
 				postTimer.Elapsed += OnPostTimerEnd;
+				timerEventBoundToMethod = true;
 				ResetTimer();
 			}
 
