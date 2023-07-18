@@ -215,15 +215,22 @@ namespace ReginaldBot
 			foreach (ulong guildChannelSettingId in guildSettings.Values)
 			{
 				currentGuildChannel = client.GetChannel(guildChannelSettingId) as ITextChannel;
-				try
+				if (currentGuildChannel == null)
 				{
-					await currentGuildChannel.SendMessageAsync(imgLink);
-					await Log(new LogMessage(LogSeverity.Info, "Reginald", $"Posted in #{currentGuildChannel} in {currentGuildChannel.Guild.Name}"));
+					await Log(new LogMessage(LogSeverity.Error, "Reginald", $"Channel with ID of {guildChannelSettingId} was found to be null"));
 				}
-				catch (Exception e)
+				else
 				{
-					await Log(new LogMessage(LogSeverity.Error, "Reginald", e.InnerException.Message));
-					await Log(new LogMessage(LogSeverity.Error, "Reginald", $"Error attempting to post in #{currentGuildChannel} in {currentGuildChannel.Guild.Name}"));
+					try
+					{
+						await currentGuildChannel.SendMessageAsync(imgLink);
+						await Log(new LogMessage(LogSeverity.Info, "Reginald", $"Posted in #{currentGuildChannel} in {currentGuildChannel.Guild.Name}"));
+					}
+					catch (Exception e)
+					{
+						await Log(new LogMessage(LogSeverity.Error, "Reginald", e.InnerException.Message));
+						await Log(new LogMessage(LogSeverity.Error, "Reginald", $"Error attempting to post in channel with ID of {guildChannelSettingId}"));
+					}
 				}
 			}
 			await Log(new LogMessage(LogSeverity.Info, "Reginald", $"Finished appearing everywhere at {DateTime.Now}"));
