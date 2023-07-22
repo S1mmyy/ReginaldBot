@@ -10,6 +10,9 @@ using Discord;
 using Discord.Net;
 using Discord.WebSocket;
 
+using Serilog;
+using Serilog.Events;
+
 namespace ReginaldBot
 {
 	public class Program
@@ -21,14 +24,17 @@ namespace ReginaldBot
 		private Timer postTimer;
 		private bool timerEventBoundToMethod = false;
 
-		public static Task Main()
-		{
-			return new Program().MainAsync();
-		}
+		public static Task Main() => new Program().MainAsync();
 
 		// Starts program into an async context
 		public async Task MainAsync()
 		{
+			Log.Logger = new LoggerConfiguration()
+				.MinimumLevel.Verbose()
+				.Enrich.FromLogContext()
+				.WriteTo.Console()
+				.CreateLogger();
+
 			var token = Environment.GetEnvironmentVariable("DiscordToken");
 			postTimer = new Timer() { AutoReset = false };
 
@@ -37,9 +43,9 @@ namespace ReginaldBot
 				UseInteractionSnowflakeDate = false,
 				GatewayIntents = GatewayIntents.AllUnprivileged & ~GatewayIntents.GuildScheduledEvents & ~GatewayIntents.GuildInvites,
 			};
-
 			client = new DiscordSocketClient(config);
-			client.Log += Log;
+
+			client.Log += LogAsync;
 
 			await client.LoginAsync(TokenType.Bot, token);
 			await client.StartAsync();
@@ -53,27 +59,35 @@ namespace ReginaldBot
 			await Task.Delay(-1);
 		}
 
-		private Task Log(LogMessage msg)
+		private static async Task LogAsync(LogMessage message)
 		{
-			Console.WriteLine(msg.ToString());
-			return Task.CompletedTask;
+			var severity = message.Severity switch
+			{
+				LogSeverity.Critical => LogEventLevel.Fatal,
+				LogSeverity.Error => LogEventLevel.Error,
+				LogSeverity.Warning => LogEventLevel.Warning,
+				LogSeverity.Info => LogEventLevel.Information,
+				LogSeverity.Verbose => LogEventLevel.Verbose,
+				LogSeverity.Debug => LogEventLevel.Debug,
+				_ => LogEventLevel.Information
+			};
+			Log.Write(severity, message.Exception, "[{Source}] {Message}", message.Source, message.Message);
+			await Task.CompletedTask;
 		}
 		
-		private Task JoinedServer(SocketGuild newGuild)
+		private async Task JoinedServer(SocketGuild newGuild)
 		{
 			// Appear in the welcome channel by default
 			guildSettings.Add(newGuild.Id, newGuild.DefaultChannel.Id);
-			Log(new LogMessage(LogSeverity.Info, "Reginald", $"Joined server: {newGuild.Name}"));
+			await LogAsync(new LogMessage(LogSeverity.Info, "Reginald", $"Joined server: {newGuild.Name}"));
 			WriteSettings();
-			return Task.CompletedTask;
 		}
 
-		private Task LeftServer(SocketGuild guildLeft)
+		private async Task LeftServer(SocketGuild guildLeft)
 		{
 			guildSettings.Remove(guildLeft.Id);
-			Log(new LogMessage(LogSeverity.Info, "Reginald", $"Left server: {guildLeft.Name}"));
+			await LogAsync(new LogMessage(LogSeverity.Info, "Reginald", $"Left server: {guildLeft.Name}"));
 			WriteSettings();
-			return Task.CompletedTask;
 		}
 
 		// Things that happen on startup
@@ -88,7 +102,7 @@ namespace ReginaldBot
 		// Doesn't run on initial connection
 		private async Task ClientConnected()
 		{
-			await Log(new LogMessage(LogSeverity.Info, "Reginald", string.Format("{0:%d} days {0:%h} hours and {0:%m} minutes left until posting", nextPostDate - DateTime.Now)));
+			await LogAsync(new LogMessage(LogSeverity.Info, "Reginald", string.Format("{0:%d} days {0:%h} hours and {0:%m} minutes left until posting", nextPostDate - DateTime.Now)));
 		}
 
 		private async Task BuildSlashCommands()
@@ -115,7 +129,7 @@ namespace ReginaldBot
 			}
 			catch (HttpException e)
 			{
-				await Log(new LogMessage(LogSeverity.Error, "Reginald", e.Message));
+				await LogAsync(new LogMessage(LogSeverity.Error, "Reginald", e.Message));
 			}
 		}
 
@@ -138,7 +152,7 @@ namespace ReginaldBot
 			}
 			catch (HttpException e)
 			{
-				await Log(new LogMessage(LogSeverity.Error, "Reginald", e.Message));
+				await LogAsync(new LogMessage(LogSeverity.Error, "Reginald", e.Message));
 			}
 		}
 
@@ -151,7 +165,7 @@ namespace ReginaldBot
 				guildSettings[newChannelChosen.Guild.Id] = newChannelChosen.Id;
 			WriteSettings();
 			await command.RespondAsync($"Reginald will now appear in <#{newChannelChosen.Id}>");
-			await Log(new LogMessage(LogSeverity.Info, "Reginald", $"{newChannelChosen.Guild.Name} told Reginald to appear in #{newChannelChosen.Name}"));
+			await LogAsync(new LogMessage(LogSeverity.Info, "Reginald", $"{newChannelChosen.Guild.Name} told Reginald to appear in #{newChannelChosen.Name}"));
 		}
 
 		private async Task HandleGetChannelCommand(SocketSlashCommand command)
@@ -166,14 +180,14 @@ namespace ReginaldBot
 			await command.RespondAsync($"Made Reginald appear in <#{currentGuildChannelSetting}>", ephemeral: true);
 			var appearChannel = client.GetChannel(currentGuildChannelSetting) as ITextChannel;
 			await appearChannel.SendMessageAsync(imgLink);
-			await Log(new LogMessage(LogSeverity.Info, "Reginald", $"Reginald forced to appear in #{appearChannel} in {client.GetGuild(command.GuildId.Value).Name}"));
+			await LogAsync(new LogMessage(LogSeverity.Info, "Reginald", $"Reginald forced to appear in #{appearChannel} in {client.GetGuild(command.GuildId.Value).Name}"));
 		}
 
 		private async Task StartupTasks()
 		{
 			if (DateTime.Now.Hour >= nextPostDate.Hour && DateTime.Now.Day == nextPostDate.Day && DateTime.Now.Month == nextPostDate.Month && DateTime.Now.Year == nextPostDate.Year)
 			{
-				await Log(new LogMessage(LogSeverity.Info, "Reginald", "TODAY\'S THE DAY!!!!!"));
+				await LogAsync(new LogMessage(LogSeverity.Info, "Reginald", "TODAY\'S THE DAY!!!!!"));
 				await AppearInAllServers();
 			}
 			else if (DateTime.Now > nextPostDate)
@@ -208,7 +222,7 @@ namespace ReginaldBot
 			postTimer.Stop();
 			postTimer.Interval = (nextPostDate - DateTime.Now).TotalMilliseconds;
 			postTimer.Start();
-			await Log(new LogMessage(LogSeverity.Info, "Reginald", string.Format("{0:%d} days {0:%h} hours and {0:%m} minutes left until posting", nextPostDate - DateTime.Now)));
+			await LogAsync(new LogMessage(LogSeverity.Info, "Reginald", string.Format("{0:%d} days {0:%h} hours and {0:%m} minutes left until posting", nextPostDate - DateTime.Now)));
 		}
 
 		private async Task AppearInAllServers()
@@ -220,15 +234,15 @@ namespace ReginaldBot
 				try
 				{
 					await currentGuildChannel.SendMessageAsync(imgLink);
-					await Log(new LogMessage(LogSeverity.Info, "Reginald", $"Posted in #{currentGuildChannel} in {currentGuildChannel.Guild.Name}"));
+					await LogAsync(new LogMessage(LogSeverity.Info, "Reginald", $"Posted in #{currentGuildChannel} in {currentGuildChannel.Guild.Name}"));
 				}
 				catch (Exception e)
 				{
-					await Log(new LogMessage(LogSeverity.Error, "Reginald", e.Message.ToString()));
-					await Log(new LogMessage(LogSeverity.Error, "Reginald", $"Error attempting to post in channel #{currentGuildChannel} with ID of {guildChannelSettingId}"));
+					await LogAsync(new LogMessage(LogSeverity.Error, "Reginald", e.Message.ToString()));
+					await LogAsync(new LogMessage(LogSeverity.Error, "Reginald", $"Error attempting to post in channel #{currentGuildChannel} with ID of {guildChannelSettingId}"));
 				}
 			}
-			await Log(new LogMessage(LogSeverity.Info, "Reginald", $"Finished appearing everywhere at {DateTime.Now}"));
+			await LogAsync(new LogMessage(LogSeverity.Info, "Reginald", $"Finished appearing everywhere at {DateTime.Now}"));
 			SetNewDates();
 		}
 
@@ -250,7 +264,7 @@ namespace ReginaldBot
 				lastPostDate = DateTime.Parse(sr.ReadLine());
 				nextPostDate = DateTime.Parse(sr.ReadLine());
 			}
-			await Log(new LogMessage(LogSeverity.Info, "Reginald", "Saved dates read in"));
+			await LogAsync(new LogMessage(LogSeverity.Info, "Reginald", "Saved dates read in"));
 		}
 
 		private void WriteSettings()
@@ -266,10 +280,10 @@ namespace ReginaldBot
 				sw.WriteLine(lastPostDate);
 				sw.WriteLine(nextPostDate);
 			}
-			await Log(new LogMessage(LogSeverity.Info, "Reginald", "New dates saved to file"));
+			await LogAsync(new LogMessage(LogSeverity.Info, "Reginald", "New dates saved to file"));
 		}
 
-		private void UpdateGuildSettingsAtStartup()
+		private async void UpdateGuildSettingsAtStartup()
 		{
 			// Check for servers Reginald has left while offline
 			foreach (ulong guildIdFromSettings in guildSettings.Keys)
@@ -277,7 +291,7 @@ namespace ReginaldBot
 				if (!client.Guilds.Contains(client.GetGuild(guildIdFromSettings)))
 				{
 					guildSettings.Remove(guildIdFromSettings);
-					Log(new LogMessage(LogSeverity.Info, "Reginald", $"Left server while offline: {client.GetGuild(guildIdFromSettings).Name}"));
+					await LogAsync(new LogMessage(LogSeverity.Info, "Reginald", $"Left server while offline: {client.GetGuild(guildIdFromSettings).Name}"));
 				}
 			}
 
@@ -287,7 +301,7 @@ namespace ReginaldBot
 				if (!guildSettings.ContainsKey(currJoinedGuild.Id))
 				{
 					guildSettings.Add(currJoinedGuild.Id, currJoinedGuild.DefaultChannel.Id);
-					Log(new LogMessage(LogSeverity.Info, "Reginald", $"Joined server while offline: {currJoinedGuild.Name}"));
+					await LogAsync(new LogMessage(LogSeverity.Info, "Reginald", $"Joined server while offline: {currJoinedGuild.Name}"));
 				}
 			}
 			WriteSettings();
