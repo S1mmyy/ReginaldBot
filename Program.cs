@@ -75,19 +75,19 @@ namespace ReginaldBot
 			await Task.CompletedTask;
 		}
 		
-		private async Task JoinedServer(SocketGuild newGuild)
+		private Task JoinedServer(SocketGuild newGuild)
 		{
 			// Appear in the welcome channel by default
 			guildSettings.Add(newGuild.Id, newGuild.DefaultChannel.Id);
-			await LogAsync(new LogMessage(LogSeverity.Info, "Reginald", $"Joined server: {newGuild.Name}"));
 			WriteSettings();
+			return Task.CompletedTask;
 		}
 
-		private async Task LeftServer(SocketGuild guildLeft)
+		private Task LeftServer(SocketGuild guildLeft)
 		{
 			guildSettings.Remove(guildLeft.Id);
-			await LogAsync(new LogMessage(LogSeverity.Info, "Reginald", $"Left server: {guildLeft.Name}"));
 			WriteSettings();
+			return Task.CompletedTask;
 		}
 
 		// Things that happen on startup
