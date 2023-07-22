@@ -38,10 +38,10 @@ namespace ReginaldBot
 			var token = Environment.GetEnvironmentVariable("DiscordToken");
 			postTimer = new Timer() { AutoReset = false };
 
-			DiscordSocketConfig config = new DiscordSocketConfig()
+			DiscordSocketConfig config = new()
 			{
 				UseInteractionSnowflakeDate = false,
-				GatewayIntents = GatewayIntents.AllUnprivileged & ~GatewayIntents.GuildScheduledEvents & ~GatewayIntents.GuildInvites,
+				GatewayIntents = GatewayIntents.AllUnprivileged & ~GatewayIntents.GuildScheduledEvents & ~GatewayIntents.GuildInvites | GatewayIntents.GuildMembers,
 			};
 			client = new DiscordSocketClient(config);
 
@@ -286,22 +286,35 @@ namespace ReginaldBot
 		private async void UpdateGuildSettingsAtStartup()
 		{
 			// Check for servers Reginald has left while offline
-			foreach (ulong guildIdFromSettings in guildSettings.Keys)
+			Dictionary<ulong, ulong> settingsCopy = new(guildSettings);
+			foreach (ulong guildIdFromSettings in settingsCopy.Keys)
 			{
 				if (!client.Guilds.Contains(client.GetGuild(guildIdFromSettings)))
 				{
 					guildSettings.Remove(guildIdFromSettings);
-					await LogAsync(new LogMessage(LogSeverity.Info, "Reginald", $"Left server while offline: {client.GetGuild(guildIdFromSettings).Name}"));
+					await LogAsync(new LogMessage(LogSeverity.Info, "Reginald", $"Left server while offline: {guildIdFromSettings}"));
 				}
 			}
 
-			// Check for servers Reginald has joined while offline
+			// Check for servers Reginald has joined while offline, and DM the server owner
 			foreach (SocketGuild currJoinedGuild in client.Guilds)
 			{
 				if (!guildSettings.ContainsKey(currJoinedGuild.Id))
 				{
+					await currJoinedGuild.DownloadUsersAsync();
+					IUser guildOwner = client.GetUser(currJoinedGuild.OwnerId);
+
 					guildSettings.Add(currJoinedGuild.Id, currJoinedGuild.DefaultChannel.Id);
-					await LogAsync(new LogMessage(LogSeverity.Info, "Reginald", $"Joined server while offline: {currJoinedGuild.Name}"));
+					await LogAsync(new LogMessage(LogSeverity.Info, "Reginald", $"Joined server while offline: {currJoinedGuild.Name}."));
+					try
+					{
+						await guildOwner.SendMessageAsync($"Hiya! I noticed that you added me to your server while I was offline.\nNow that I'm on, it's a great time to choose which channel I appear in.\nI'm currently set to appear in <#{currJoinedGuild.DefaultChannel.Id}>");
+						await LogAsync(new LogMessage(LogSeverity.Info, "Reginald", $"Notified {guildOwner} about joining while offline."));
+					}
+					catch (HttpException)
+					{
+						await LogAsync(new LogMessage(LogSeverity.Error, "Reginald", $"Could not DM {guildOwner}."));
+					}
 				}
 			}
 			WriteSettings();
